@@ -6,6 +6,7 @@ const { JSDOM } = require("jsdom");
 globalThis.TurndownService = require("turndown");
 globalThis.turndownPluginGfm = require("turndown-plugin-gfm");
 globalThis.marked = require("marked");
+globalThis.DOMParser = new JSDOM("").window.DOMParser;
 
 require(path.join(__dirname, "..", "src", "lib", "md-convert.js"));
 require(path.join(__dirname, "..", "src", "lib", "compose-region.js"));

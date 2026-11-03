@@ -4,13 +4,34 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { MD, dom } = require("./helpers.js");
 
-test("markdownToHtml: heading, list, code fence, table, breaks", () => {
-  const html = MD.markdownToHtml("# Title\n\nline one\nline two\n\n- a\n- b\n\n```js\nx = 1\n```\n\n| h1 | h2 |\n|---|---|\n| c1 | c2 |");
+test("markdownToHtml: heading, list, code fence, table, soft and hard breaks", () => {
+  const html = MD.markdownToHtml("# Title\n\nline one\nline two  \nline three\n\n- a\n- b\n\n```js\nx = 1\n```\n\n| h1 | h2 |\n|---|---|\n| c1 | c2 |");
   assert.match(html, /<h1>Title<\/h1>/);
-  assert.match(html, /line one<br>line two/);
+  assert.match(html, /<p>line one\nline two<br>line three<\/p>/);
   assert.match(html, /<ul>\s*<li>a<\/li>\s*<li>b<\/li>\s*<\/ul>/);
   assert.match(html, /<pre><code class="language-js">x = 1\n<\/code><\/pre>/);
   assert.match(html, /<table[^>]*>[\s\S]*<th[^>]*>h1<\/th>[\s\S]*<td[^>]*>c2<\/td>[\s\S]*<\/table>/);
+});
+
+test("markdownToHtml: wrapped list items stay inline, loose items are unwrapped", () => {
+  const html = MD.markdownToHtml("- first line\n  wrapped `code` line\n- second\n\nText\n\n- loose one\n\n- loose two\n\n1. nested parent\n\n   - child\n\n2. two paragraphs\n\n   second paragraph");
+  assert.match(html, /<li>first line\nwrapped <code>code<\/code> line<\/li>/);
+  assert.match(html, /<li>loose one<\/li>\s*<li>loose two<\/li>/);
+  assert.match(html, /<li>nested parent<\/li>\s*<ul>\s*<li>child<\/li>\s*<\/ul>\s*<li>/);
+  assert.match(html, /<li><p>two paragraphs<\/p>\s*<p>second paragraph<\/p>\s*<\/li>/);
+  assert.doesNotMatch(html, /<br>/);
+});
+
+test("markdownToHtml: nested lists take the editor shape (list after its item)", () => {
+  const html = MD.markdownToHtml("- l1\n  - l2\n  - l2b\n    - l3\n- l1b");
+  assert.match(html, /<ul>\s*<li>l1<\/li>\s*<ul>\s*<li>l2<\/li>\s*<li>l2b<\/li>\s*<ul>\s*<li>l3<\/li>\s*<\/ul>\s*<\/ul>\s*<li>l1b<\/li>\s*<\/ul>/);
+  assert.doesNotMatch(html, /<li>[^<]*<ul>/);
+});
+
+test("htmlToMarkdown: editor-shaped nested lists round-trip with indentation", () => {
+  const md = MD.htmlToMarkdown("<ul><li>l1</li><ul><li>l2</li><ul><li>l3</li></ul><li>l2b</li></ul><li>l1b</li></ul>");
+  assert.equal(md, "- l1\n  - l2\n    - l3\n  - l2b\n- l1b");
+  assert.equal(MD.htmlToMarkdown(MD.markdownToHtml(md)), md);
 });
 
 test("markdownToHtml: empty input gives empty string", () => {
@@ -51,6 +72,11 @@ test("domToText keeps blank lines (paragraph separation)", () => {
 test("textToSourceHtml escapes and splits lines", () => {
   const html = MD.textToSourceHtml("a <b>\r\n> q");
   assert.equal(html, '<div class="thundermd-source">a &lt;b&gt;<br>&gt; q<br></div>');
+});
+
+test("textToLinesHtml escapes, normalizes CRLF and joins with br", () => {
+  assert.equal(MD.textToLinesHtml("a <b>\r\nc\n\nd"), "a &lt;b&gt;<br>c<br><br>d");
+  assert.equal(MD.textToLinesHtml(""), "");
 });
 
 test("buildSourceElement round-trips through domToText", () => {

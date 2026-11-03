@@ -158,8 +158,25 @@ class Harness {
         html: editorDoc.body.innerHTML,
         children: [...editorDoc.body.children].map(e => e.localName + (e.className ? "." + e.className : "") + (e.getAttribute("type") ? "[" + e.getAttribute("type") + "]" : "")),
         wrapperText: wrapper ? wrapper.innerText : null,
+        wrapperHtml: wrapper ? wrapper.innerHTML : null,
         buttonTitle: w.document.getElementById("${COMPOSE_BUTTON}").getAttribute("tooltiptext"),
       }`);
+  }
+
+  /**
+   * Dispatches a synthetic paste event carrying a text/plain flavor into the
+   * editor document, without touching the system clipboard. Gecko ignores the
+   * clipboardData member of ClipboardEventInit and only honors its own
+   * dataType/data pair, so a single flavor is all a synthetic event can carry.
+   * The editor ignores untrusted events, so only the add-on's listener can
+   * insert text.
+   */
+  pasteText(subject, text) {
+    return this.chromeEval(`${this.composeWindowSnippet(subject)}
+      const win = editorDoc.defaultView;
+      const event = new win.ClipboardEvent("paste", { dataType: "text/plain", data: ${JSON.stringify(text)}, bubbles: true, cancelable: true });
+      editorDoc.body.dispatchEvent(event);
+      return event.defaultPrevented`);
   }
 
   async closeCompose(subject) {
@@ -226,23 +243,47 @@ const scenarios = {
   async "compose-toggle"(h) {
     const subject = "tmd-compose";
     try {
-      await h.bgEval(`await browser.compose.beginNew({ subject: ${JSON.stringify(subject)}, to: ["a@example.invalid"], body: "<h2>Hi</h2><p>a <b>b</b></p><ul><li>x</li><li>y</li></ul><table><tr><th>Col A</th><th>Col B</th></tr><tr><td>1</td><td>2</td></tr></table><p>between</p><table><tr><td>k</td><td>v</td></tr><tr><td>k2</td><td>v2</td></tr></table>" }); return true`);
+      await h.bgEval(`await browser.compose.beginNew({ subject: ${JSON.stringify(subject)}, to: ["a@example.invalid"], body: "<h2>Hi</h2><p>a <b>b</b></p><ul><li>x</li><ul><li>x1</li></ul><li>y</li></ul><table><tr><th>Col A</th><th>Col B</th></tr><tr><td>1</td><td>2</td></tr></table><p>between</p><table><tr><td>k</td><td>v</td></tr><tr><td>k2</td><td>v2</td></tr></table>" }); return true`);
       await sleep(2000);
       await h.clickComposeButton(subject);
       let ed = await h.readEditor(subject);
       assert(ed.wrapperText !== null, `wrapper present after first click; children=${ed.children}`);
-      for (const expected of ["## Hi", "a **b**", "- x", "- y", "| Col A | Col B |", "| --- | --- |", "| 1 | 2 |", "| k | v |", "| k2 | v2 |"]) {
+      for (const expected of ["## Hi", "a **b**", "- x\n  - x1\n- y", "| Col A | Col B |", "| --- | --- |", "| 1 | 2 |", "| k | v |", "| k2 | v2 |"]) {
         assert(ed.wrapperText.includes(expected), `wrapper text contains ${JSON.stringify(expected)}\n--- got:\n${ed.wrapperText}`);
       }
       assert(ed.buttonTitle === "Convert Markdown to HTML", `active title, got ${ed.buttonTitle}`);
       await h.clickComposeButton(subject);
       ed = await h.readEditor(subject);
       assert(ed.wrapperText === null, "wrapper removed after second click");
-      for (const expected of ["<h2>Hi</h2>", "<strong>b</strong>", "<li>x</li>", "<li>y</li>", ">Col A</th>", ">2</td>", ">k</th>", ">v2</td>", 'border="1"', "border-collapse:collapse"]) {
+      for (const expected of ["<h2>Hi</h2>", "<strong>b</strong>", "<li>x</li><ul>\n<li>x1</li>\n</ul>\n<li>y</li>", ">Col A</th>", ">2</td>", ">k</th>", ">v2</td>", 'border="1"', "border-collapse:collapse"]) {
         assert(ed.html.includes(expected), `html contains ${JSON.stringify(expected)}\n--- got:\n${ed.html}`);
       }
       assert(ed.buttonTitle === "Switch to Markdown mode", `default title, got ${ed.buttonTitle}`);
       assert((ed.html.match(/<table/g) || []).length === 2, `two tables rendered\n--- got:\n${ed.html}`);
+    } finally {
+      await h.closeCompose(subject);
+    }
+  },
+
+  async "compose-paste-plain-text"(h) {
+    const subject = "tmd-paste";
+    const text = "\n# Title\nline one\nline two";
+    try {
+      await h.bgEval(`await browser.compose.beginNew({ subject: ${JSON.stringify(subject)}, to: ["a@example.invalid"], body: "<p>x</p>" }); return true`);
+      await sleep(2000);
+      await h.clickComposeButton(subject);
+      let prevented = await h.pasteText(subject, text);
+      assert(prevented === true, "paste handled inside the markdown block");
+      await sleep(300);
+      let ed = await h.readEditor(subject);
+      assert(ed.wrapperHtml !== null, `wrapper present; children=${ed.children}`);
+      assert(ed.wrapperHtml.includes("x<br># Title<br>line one<br>line two"), `lines joined with br\n--- got:\n${ed.wrapperHtml}`);
+      assert(!/<(p|div)[\s>]/.test(ed.wrapperHtml), `no block elements inside the wrapper\n--- got:\n${ed.wrapperHtml}`);
+      await h.clickComposeButton(subject);
+      ed = await h.readEditor(subject);
+      assert(ed.html.includes("<h1>Title</h1>"), `pasted markdown converted\n--- got:\n${ed.html}`);
+      prevented = await h.pasteText(subject, text);
+      assert(prevented === false, "paste left to the editor outside the markdown block");
     } finally {
       await h.closeCompose(subject);
     }

@@ -1,6 +1,6 @@
 {
   "name": "thundermd",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Thunderbird extension to read and write email bodies as Markdown",
   "private": true,
   "license": "MIT",

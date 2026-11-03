@@ -90,29 +90,90 @@
     if (input == null) {
       return "";
     }
-    let source = input;
-    if (typeof input !== "string") {
-      source = input.cloneNode(true);
-      if (excludeSelector) {
-        for (const node of source.querySelectorAll(excludeSelector)) {
-          node.remove();
-        }
+    const source = typeof input === "string" ? parseHtml(input) : input.cloneNode(true);
+    if (excludeSelector) {
+      for (const node of source.querySelectorAll(excludeSelector)) {
+        node.remove();
       }
-      normalizeTables(source);
     }
+    normalizeTables(source);
+    nestLists(source);
     return getTurndown().turndown(source).trim();
   }
 
+  function parseHtml(html) {
+    return new root.DOMParser().parseFromString(html, "text/html").body;
+  }
+
+  function isList(node) {
+    return node.nodeName === "UL" || node.nodeName === "OL";
+  }
+
+  /*
+   * The Thunderbird editor nests lists as siblings of their parent item
+   * (<ul><li>a</li><ul><li>b</li></ul></ul>) and reports the list state of
+   * the formatting toolbar only for items with inline content. The output of
+   * marked is reshaped the same way: nested lists move after their item and
+   * single-paragraph (loose) items are unwrapped. Items with several
+   * paragraphs are left as they are.
+   */
+  function flattenListItems(root) {
+    for (const item of Array.from(root.querySelectorAll("li"))) {
+      let reference = item;
+      for (const list of Array.from(item.children).filter(isList)) {
+        reference.after(list);
+        reference = list;
+      }
+      const content = Array.from(item.childNodes).filter(node => node.nodeType !== 3 || node.data.trim());
+      if (content.length === 1 && content[0].nodeName === "P") {
+        const paragraph = content[0];
+        while (paragraph.firstChild) {
+          item.insertBefore(paragraph.firstChild, paragraph);
+        }
+        paragraph.remove();
+      }
+      trimTrailingWhitespace(item);
+    }
+  }
+
+  function trimTrailingWhitespace(element) {
+    let last = element.lastChild;
+    while (last && last.nodeType === 3) {
+      last.data = last.data.replace(/\s+$/, "");
+      if (last.data) {
+        return;
+      }
+      last.remove();
+      last = element.lastChild;
+    }
+  }
+
+  /*
+   * Inverse of flattenListItems for turndown, which only indents a list
+   * placed inside an item. A list without a preceding item is left alone.
+   */
+  function nestLists(root) {
+    for (const list of Array.from(root.querySelectorAll("ul > ul, ul > ol, ol > ul, ol > ol"))) {
+      const previous = list.previousElementSibling;
+      if (previous && previous.nodeName === "LI") {
+        previous.appendChild(list);
+      }
+    }
+  }
+
   /**
-   * Markdown -> HTML. `breaks: true`: in email a single newline is almost
-   * always meant as a line break.
+   * Markdown -> HTML. CommonMark line semantics (`breaks: false`): a single
+   * newline is a soft break, so hard-wrapped sources render as flowing text
+   * and list items stay on one line. A hard break needs two trailing spaces
+   * or a backslash.
    */
   function markdownToHtml(markdown) {
     if (!markdown || !markdown.trim()) {
       return "";
     }
-    const html = root.marked.parse(markdown, { gfm: true, breaks: true, async: false });
-    return styleTables(html);
+    const body = parseHtml(root.marked.parse(markdown, { gfm: true, breaks: false, async: false }));
+    flattenListItems(body);
+    return styleTables(body.innerHTML);
   }
 
   const TABLE_STYLE = "border-collapse:collapse;border:1px solid #999999";
@@ -179,13 +240,19 @@
   }
 
   /**
-   * Markdown source wrapper as an HTML string (used by the background script
-   * to open a new HTML composition from plain text).
+   * Plain text as escaped HTML lines separated by <br>, the representation
+   * used inside the markdown source wrapper.
+   */
+  function textToLinesHtml(text) {
+    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    return lines.map(line => escapeHtml(line)).join("<br>");
+  }
+
+  /**
+   * Markdown source wrapper as an HTML string.
    */
   function textToSourceHtml(text) {
-    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
-    const inner = lines.map(line => escapeHtml(line)).join("<br>");
-    return `<div class="${SOURCE_CLASS}">${inner || ""}<br></div>`;
+    return `<div class="${SOURCE_CLASS}">${textToLinesHtml(text)}<br></div>`;
   }
 
   /**
@@ -218,6 +285,7 @@
     markdownToHtml,
     domToText,
     escapeHtml,
+    textToLinesHtml,
     textToSourceHtml,
     buildSourceElement,
     getSourceElement,

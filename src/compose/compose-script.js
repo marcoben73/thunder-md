@@ -67,6 +67,57 @@
     return Object.assign(currentState(), { source });
   }
 
+  /** The source wrapper when the whole selection lies inside it. */
+  function sourceElementAroundSelection() {
+    const wrapper = MD.getSourceElement(document.body);
+    const selection = window.getSelection();
+    if (!wrapper || !selection || !selection.rangeCount) {
+      return null;
+    }
+    const range = selection.getRangeAt(0);
+    return wrapper.contains(range.startContainer) && wrapper.contains(range.endContainer) ? wrapper : null;
+  }
+
+  function insertLines(text) {
+    const html = MD.textToLinesHtml(text);
+    if (document.execCommand("insertHTML", false, html)) {
+      return;
+    }
+    const selection = window.getSelection();
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const fragment = new DOMParser().parseFromString(html, "text/html").body;
+    const nodes = Array.from(fragment.childNodes).map(node => document.importNode(node, true));
+    for (const node of nodes) {
+      range.insertNode(node);
+      range.setStartAfter(node);
+    }
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /*
+   * Editors such as Ghostwriter put an HTML flavor on the clipboard with one
+   * block element per line. Pasted as HTML into the source wrapper, every
+   * line would become a paragraph and show up with a blank line after it.
+   * Inside the wrapper only the plain text flavor is meaningful.
+   */
+  function onPaste(event) {
+    if (!sourceElementAroundSelection()) {
+      return;
+    }
+    const data = event.clipboardData;
+    const text = data ? data.getData("text/plain") : "";
+    if (!text) {
+      return;
+    }
+    event.preventDefault();
+    insertLines(text);
+  }
+
+  document.addEventListener("paste", onPaste, true);
+
   browser.runtime.onMessage.addListener(message => {
     if (!message || typeof message.action !== "string") {
       return false;

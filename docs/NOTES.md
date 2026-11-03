@@ -42,6 +42,15 @@ Collected during design (November 2026, Thunderbird 153.0.2).
   already on screen with `tabs.insertCSS`/`tabs.executeScript` at startup.
 - Thunderbird prepends hidden header tables (`.moz-main-header`, `.moz-header-part*`) to the body of
   a displayed message: exclude them when converting.
+- The compose editor pastes the `text/html` flavor when the clipboard has one (Ghostwriter and
+  similar editors offer one block element per line): inside the source block a `paste` listener
+  cancels the default and inserts the `text/plain` flavor through `execCommand("insertHTML")`,
+  which keeps the editor undo stack.
+- Synthetic paste events: Gecko ignores the `clipboardData` member of `ClipboardEventInit` (a fresh
+  empty DataTransfer is attached) and only honors its own `dataType`/`data` pair, one flavor only.
+  Content listeners cannot read a `DataTransfer` filled from chrome code either (principal check).
+  The e2e harness uses `new ClipboardEvent("paste", { dataType: "text/plain", data })`, which never
+  touches the system clipboard shared with the desktop.
 
 ## Internals for a possible Experiment ("Message Body As" menu)
 
@@ -83,4 +92,14 @@ cleanup in `onShutdown()`.
 - Author region = top-level body children excluding `.moz-cite-prefix`, `blockquote[type=cite]`,
   `.moz-signature`, `.moz-forward-container`, `.moz-email-headers-table`. If the author text is
   split around the quote (inline reply) the pieces are grouped at the position of the first one.
-- `marked` with `breaks: true`: single newline -> `<br>`.
+- `marked` with `breaks: false` (CommonMark): single newline = soft break. Chosen because the editor
+  reports the list state (formatting toolbar highlight, `nsIHTMLEditor.getListState`) only for list
+  items with a single line of inline content: any `<br>`, `<p>` or `<div>` inside the `<li>` turns it
+  off, also in native lists (Shift+Enter) and on the parent item of a nested list. With `breaks: true`
+  every hard-wrapped item lost the highlight. Single-paragraph loose items are unwrapped for the same
+  reason.
+- The editor nests lists as siblings of the parent item (`<ul><li>a</li><ul><li>b</li></ul></ul>`,
+  verified with `cmd_indent`), invalid HTML that Thunderbird has always sent. With the standard
+  `<li>a<ul>...</ul></li>` the parent item loses the list state. marked output is reshaped to the
+  editor form (`flattenListItems`) and turned back before turndown (`nestLists`), which otherwise
+  flattens sibling lists to top level.

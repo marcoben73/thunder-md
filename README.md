@@ -16,14 +16,19 @@ Requires Thunderbird >= 153.
   - HTML composition: the text written by the author (quotes, signature and forward container are
     left untouched) is converted to Markdown source inside a monospace block. Second click, or send:
     the Markdown is converted to native HTML. If sending fails the Markdown source is restored.
+    Pasting into the Markdown block always uses the plain text flavor of the clipboard, so text
+    copied from a Markdown editor that also offers an HTML flavor keeps one line per line.
   - Plain text composition: the button does nothing (Thunderbird hides the formatting toolbar there
     and the compose format of an open window cannot be changed via API). To write in Markdown, compose
     in HTML: Shift+Write, or enable "Compose messages in HTML format" in the identity settings. Note
     that Options > Delivery Format only affects the sent MIME format, not the editor.
 
-Conversions: Markdown -> HTML with [marked](https://github.com/markedjs/marked) (GFM, `breaks: true`:
-a single newline becomes a line break); HTML -> Markdown with
+Conversions: Markdown -> HTML with [marked](https://github.com/markedjs/marked) (GFM, CommonMark line
+semantics: a single newline is a soft break, so hard-wrapped sources render as flowing text; a line
+break needs two trailing spaces or a backslash, a new paragraph an empty line); HTML -> Markdown with
 [turndown](https://github.com/mixmark-io/turndown) + GFM plugin (tables, strikethrough, task lists).
+Lists are reshaped to the form the native editor produces (loose items unwrapped, nested lists placed
+after their parent item), so the formatting toolbar reflects the list state on every item.
 
 ## Development
 
