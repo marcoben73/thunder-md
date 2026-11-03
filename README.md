@@ -1,10 +1,9 @@
-# Thunder MD
+# ThunderMD
 
-Thunderbird extension for Markdown
+A Thunderbird extension for Markdown.
 
-*received mail* convert to markdown
-
-*new mail* write in markdown
+- **Received mail**: show the message body as Markdown source.
+- **New mail**: write in Markdown and send it as HTML.
 
 ## Features
 
