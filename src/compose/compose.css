@@ -1,0 +1,8 @@
+.thundermd-source {
+  font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  padding: 6px 10px;
+  border-left: 3px solid #0a84ff;
+  background-color: rgba(10, 132, 255, 0.06);
+}

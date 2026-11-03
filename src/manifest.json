@@ -1,0 +1,95 @@
+{
+  "manifest_version": 2,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.1.0",
+  "author": "Marco Benuzzi",
+  "homepage_url": "https://github.com/marcoben73/thunder-md",
+  "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thundermd@khet.it",
+      "strict_min_version": "153.0"
+    }
+  },
+  "icons": {
+    "16": "icons/md.svg",
+    "32": "icons/md.svg",
+    "64": "icons/md.svg"
+  },
+  "permissions": [
+    "compose",
+    "messagesModify",
+    "messagesRead"
+  ],
+  "background": {
+    "scripts": [
+      "lib/md-convert.js",
+      "background.js"
+    ]
+  },
+  "message_display_action": {
+    "default_title": "__MSG_displayToggleTitle__",
+    "default_label": "__MSG_composeToggleLabel__",
+    "default_icon": "icons/md-dark.svg",
+    "theme_icons": [
+      {
+        "light": "icons/md-light.svg",
+        "dark": "icons/md-dark.svg",
+        "size": 16
+      },
+      {
+        "light": "icons/md-light.svg",
+        "dark": "icons/md-dark.svg",
+        "size": 32
+      }
+    ]
+  },
+  "message_display_scripts": [
+    {
+      "js": [
+        "vendor/turndown.js",
+        "vendor/turndown-plugin-gfm.js",
+        "lib/md-convert.js",
+        "display/display-script.js"
+      ],
+      "css": [
+        "display/display.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "compose_action": {
+    "default_area": "formattoolbar",
+    "default_title": "__MSG_composeToggleTitle__",
+    "default_label": "__MSG_composeToggleLabel__",
+    "default_icon": "icons/md-dark.svg",
+    "theme_icons": [
+      {
+        "light": "icons/md-light.svg",
+        "dark": "icons/md-dark.svg",
+        "size": 16
+      },
+      {
+        "light": "icons/md-light.svg",
+        "dark": "icons/md-dark.svg",
+        "size": 32
+      }
+    ]
+  },
+  "compose_scripts": [
+    {
+      "js": [
+        "vendor/marked.umd.js",
+        "vendor/turndown.js",
+        "vendor/turndown-plugin-gfm.js",
+        "lib/md-convert.js",
+        "lib/compose-region.js",
+        "compose/compose-script.js"
+      ],
+      "css": [
+        "compose/compose.css"
+      ]
+    }
+  ]
+}

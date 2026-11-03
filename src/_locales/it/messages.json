@@ -1,0 +1,9 @@
+{
+  "extensionName": { "message": "ThunderMD" },
+  "extensionDescription": { "message": "Mostra i messaggi ricevuti come sorgente Markdown e scrivi nuovi messaggi in Markdown." },
+  "displayToggleTitle": { "message": "Mostra il corpo del messaggio come Markdown" },
+  "displayToggleActiveTitle": { "message": "Mostra il corpo del messaggio originale" },
+  "composeToggleTitle": { "message": "Passa alla modalità Markdown" },
+  "composeToggleActiveTitle": { "message": "Converti il Markdown in HTML" },
+  "composeToggleLabel": { "message": "Markdown" }
+}
