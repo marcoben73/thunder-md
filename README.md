@@ -5,6 +5,8 @@ A Thunderbird extension for Markdown.
 - **Received mail**: show the message body as Markdown source.
 - **New mail**: write in Markdown and send it as HTML.
 
+<a href="https://www.buymeacoffee.com/marcoben73"><img src="asset/blue-button.png" alt="Buy Me a Coffee" width="200"></a>
+
 ## Features
 
 Requires Thunderbird >= 153.
