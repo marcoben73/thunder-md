@@ -78,7 +78,7 @@ listed in `src/vendor/THIRD-PARTY.md` with the license texts next to it.
 
 ## Permissions
 
-- `compose`: editor scripts, button, send hooks, opening a new composition.
+- `compose`: editor scripts, formatting toolbar button, composition details, send hooks.
 - `messagesModify`: scripts in the message display pane.
 - `messagesRead`: find messages already on screen at startup (install, update, reload) to inject the
   display script into them.
