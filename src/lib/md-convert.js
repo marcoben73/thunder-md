@@ -17,6 +17,111 @@
 
   let turndownInstance = null;
 
+  // Separates the cells of a row between the cell and the table rules.
+  const CELL_MARK = "\u001f";
+
+  function isHeadingRow(row) {
+    const parent = row.parentNode;
+    if (parent.nodeName === "THEAD") {
+      return true;
+    }
+    return parent.firstElementChild === row &&
+      (parent.nodeName === "TABLE" || parent.nodeName === "TBODY") &&
+      Array.from(row.children).every(cell => cell.nodeName === "TH");
+  }
+
+  function padCell(text, width, align) {
+    const gap = width - Array.from(text).length;
+    if (gap <= 0) {
+      return text;
+    }
+    if (align === "right") {
+      return " ".repeat(gap) + text;
+    }
+    if (align === "center") {
+      const left = Math.floor(gap / 2);
+      return " ".repeat(left) + text + " ".repeat(gap - left);
+    }
+    return text + " ".repeat(gap);
+  }
+
+  function delimiterCell(width, align) {
+    if (align === "left") {
+      return ":" + "-".repeat(width - 1);
+    }
+    if (align === "right") {
+      return "-".repeat(width - 1) + ":";
+    }
+    if (align === "center") {
+      return ":" + "-".repeat(width - 2) + ":";
+    }
+    return "-".repeat(width);
+  }
+
+  /**
+   * GFM table with every column padded to its widest cell. `rows` are arrays
+   * of cell strings, the first one is the heading row; `aligns` holds
+   * "left", "right", "center" or "" per column.
+   */
+  function formatTable(rows, aligns) {
+    const columns = Math.max(...rows.map(row => row.length));
+    const cells = rows.map(row => Array.from({ length: columns }, (_, i) => row[i] || ""));
+    const widths = Array.from({ length: columns }, (_, i) =>
+      Math.max(3, ...cells.map(row => Array.from(row[i]).length)));
+    const line = parts => "| " + parts.join(" | ") + " |";
+    const out = [line(cells[0].map((text, i) => padCell(text, widths[i], aligns[i])))];
+    out.push(line(widths.map((width, i) => delimiterCell(width, aligns[i]))));
+    for (const row of cells.slice(1)) {
+      out.push(line(row.map((text, i) => padCell(text, widths[i], aligns[i]))));
+    }
+    return out.join("\n");
+  }
+
+  /*
+   * Replace the table rules of turndown-plugin-gfm (rules added later take
+   * precedence) to align the columns, and escape pipes inside cells, which
+   * the plugin leaves as they are and which would split the cell. Header-less
+   * tables keep the plugin's `keep`; normalizeTables() avoids them anyway.
+   */
+  function addAlignedTableRules(service) {
+    service.addRule("alignedTableCell", {
+      filter: ["th", "td"],
+      replacement(content) {
+        const text = content.replace(/\s*\n\s*/g, " ").trim().replace(/(?<!\\)\|/g, "\\|");
+        return CELL_MARK + text;
+      },
+    });
+    service.addRule("alignedTableRow", {
+      filter: "tr",
+      replacement(content) {
+        return "\n" + content;
+      },
+    });
+    service.addRule("alignedTableSection", {
+      filter: ["thead", "tbody", "tfoot"],
+      replacement(content) {
+        return content;
+      },
+    });
+    service.addRule("alignedTable", {
+      filter(node) {
+        return node.nodeName === "TABLE" && node.rows.length > 0 && isHeadingRow(node.rows[0]);
+      },
+      replacement(content, node) {
+        const rows = content
+          .split("\n")
+          .filter(line => line.includes(CELL_MARK))
+          .map(line => line.split(CELL_MARK).slice(1));
+        if (!rows.length) {
+          return "";
+        }
+        const aligns = Array.from(node.rows[0].cells, cell =>
+          (cell.getAttribute("align") || "").toLowerCase());
+        return "\n\n" + formatTable(rows, aligns) + "\n\n";
+      },
+    });
+  }
+
   function getTurndown() {
     if (turndownInstance) {
       return turndownInstance;
@@ -31,8 +136,14 @@
     });
     if (root.turndownPluginGfm && root.turndownPluginGfm.gfm) {
       service.use(root.turndownPluginGfm.gfm);
+      addAlignedTableRules(service);
     }
     service.remove(["script", "style", "title", "meta", "head"]);
+    // Turndown escapes every underscore. Between two letters or digits an
+    // underscore cannot open or close emphasis (CommonMark intraword rule),
+    // so identifiers such as q_full stay readable.
+    const escape = service.escape.bind(service);
+    service.escape = text => escape(text).replace(/(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu, "_");
     // Turndown aligns list items to 4 columns ("-   x"); a single space is enough.
     service.addRule("listItemSingleSpace", {
       filter: "li",
@@ -248,35 +359,56 @@
     return lines.map(line => escapeHtml(line)).join("<br>");
   }
 
+  /*
+   * The wrapper is a <pre>: on Enter the Thunderbird editor inserts a line
+   * break in it, while it splits a <div> or <p> into a new block at every
+   * line (mail.compose.default_to_paragraph).
+   */
+  const SOURCE_TAG = "pre";
+
   /**
    * Markdown source wrapper as an HTML string.
    */
   function textToSourceHtml(text) {
-    return `<div class="${SOURCE_CLASS}">${textToLinesHtml(text)}<br></div>`;
+    return `<${SOURCE_TAG} class="${SOURCE_CLASS}">${textToLinesHtml(text)}<br></${SOURCE_TAG}>`;
   }
 
   /**
    * Markdown source wrapper as a DOM element of the given document.
    */
   function buildSourceElement(doc, text) {
-    const div = doc.createElement("div");
-    div.className = SOURCE_CLASS;
+    const wrapper = doc.createElement(SOURCE_TAG);
+    wrapper.className = SOURCE_CLASS;
     const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
     lines.forEach((line, index) => {
       if (line) {
-        div.appendChild(doc.createTextNode(line));
+        wrapper.appendChild(doc.createTextNode(line));
       }
       if (index < lines.length - 1) {
-        div.appendChild(doc.createElement("br"));
+        wrapper.appendChild(doc.createElement("br"));
       }
     });
     // A trailing <br> keeps the caret inside the block even on an empty line.
-    div.appendChild(doc.createElement("br"));
-    return div;
+    wrapper.appendChild(doc.createElement("br"));
+    return wrapper;
   }
 
   function getSourceElement(body) {
     return body ? body.querySelector(`:scope > .${SOURCE_CLASS}`) : null;
+  }
+
+  /**
+   * All top-level source wrappers. Normally one; a draft written with an
+   * earlier version, where the editor split the block at every Enter, holds
+   * one per line.
+   */
+  function getSourceElements(body) {
+    return body ? Array.from(body.querySelectorAll(`:scope > .${SOURCE_CLASS}`)) : [];
+  }
+
+  /** Markdown text of the wrappers, one line per wrapper boundary. */
+  function sourceText(wrappers) {
+    return wrappers.map(wrapper => domToText(wrapper)).join("\n");
   }
 
   root.ThunderMD = Object.assign(root.ThunderMD || {}, {
@@ -289,5 +421,7 @@
     textToSourceHtml,
     buildSourceElement,
     getSourceElement,
+    getSourceElements,
+    sourceText,
   });
 })(globalThis);

@@ -42,6 +42,11 @@ Collected during design (November 2026, Thunderbird 153.0.2).
   already on screen with `tabs.insertCSS`/`tabs.executeScript` at startup.
 - Thunderbird prepends hidden header tables (`.moz-main-header`, `.moz-header-part*`) to the body of
   a displayed message: exclude them when converting.
+- Enter in the compose editor splits a `<div>` or `<p>` into a new block (`insertParagraph`,
+  `mail.compose.default_to_paragraph`), while inside a `<pre>` it inserts a `<br>` and never leaves
+  the block (verified with repeated Enter at the end, in an empty block and at the start). The
+  Markdown source wrapper is therefore a `<pre>`; a key handler is not needed. The conversion still
+  merges several top-level wrappers (drafts written with the `<div>` wrapper, one block per line).
 - The compose editor pastes the `text/html` flavor when the clipboard has one (Ghostwriter and
   similar editors offer one block element per line): inside the source block a `paste` listener
   cancels the default and inserts the `text/plain` flavor through `execCommand("insertHTML")`,
@@ -92,6 +97,12 @@ cleanup in `onShutdown()`.
 - Author region = top-level body children excluding `.moz-cite-prefix`, `blockquote[type=cite]`,
   `.moz-signature`, `.moz-forward-container`, `.moz-email-headers-table`. If the author text is
   split around the quote (inline reply) the pieces are grouped at the position of the first one.
+- Turndown escapes every `_`; the escape is dropped between two letters or digits (`q_full`), where
+  CommonMark intraword rules already prevent emphasis. Leading and trailing underscores stay escaped.
+- Tables: the turndown-plugin-gfm table rules are overridden (`addAlignedTableRules`) to pad every
+  column to its widest cell and to escape `|` inside cells, which the plugin leaves as is and which
+  would split the cell. A line break inside a cell becomes a space (a GFM cell is one line). Width
+  counts code points: East Asian wide characters and emoji show slightly misaligned in monospace.
 - `marked` with `breaks: false` (CommonMark): single newline = soft break. Chosen because the editor
   reports the list state (formatting toolbar highlight, `nsIHTMLEditor.getListState`) only for list
   items with a single line of inline content: any `<br>`, `<p>` or `<div>` inside the `<li>` turns it

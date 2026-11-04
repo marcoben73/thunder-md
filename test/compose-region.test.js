@@ -37,7 +37,7 @@ test("replaceAuthorRegion keeps quote and signature, places wrapper where region
   const body = window.document.body;
   const wrapper = MD.buildSourceElement(window.document, "one\n\ntwo");
   MD.replaceAuthorRegion(body, wrapper);
-  assert.deepEqual(names(Array.from(body.children)), ["div", "div", "blockquote", "div"]);
+  assert.deepEqual(names(Array.from(body.children)), ["pre", "div", "blockquote", "div"]);
   assert.equal(body.firstElementChild, wrapper);
   assert.equal(body.querySelector("blockquote").textContent, "q");
 });

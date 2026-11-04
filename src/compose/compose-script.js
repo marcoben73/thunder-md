@@ -36,9 +36,10 @@
 
   function setSource(source) {
     const wrapper = MD.buildSourceElement(document, source);
-    const existing = MD.getSourceElement(document.body);
+    const [existing, ...extra] = MD.getSourceElements(document.body);
     if (existing) {
       existing.replaceWith(wrapper);
+      extra.forEach(node => node.remove());
     } else {
       MD.replaceAuthorRegion(document.body, wrapper);
     }
@@ -47,11 +48,12 @@
   }
 
   function toHtml() {
-    const wrapper = MD.getSourceElement(document.body);
+    const [wrapper, ...extra] = MD.getSourceElements(document.body);
     if (!wrapper) {
       return Object.assign(currentState(), { source: null });
     }
-    const source = MD.domToText(wrapper);
+    const source = MD.sourceText([wrapper, ...extra]);
+    extra.forEach(node => node.remove());
     const html = MD.markdownToHtml(source);
     const parsed = new DOMParser().parseFromString(html, "text/html");
     const fragment = document.createDocumentFragment();

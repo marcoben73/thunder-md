@@ -215,7 +215,7 @@ const scenarios = {
     pane = await h.readPane();
     assert(pane.markdown !== null, "markdown view applied");
     const md = pane.markdown;
-    for (const expected of ["# Project update", "**team**", "_important_", "[the docs](https://example.invalid/docs)", "- first item", "1. step one", "```", "npm test", "| Name | Value |", "| alpha | 1 |", "> A quoted sentence."]) {
+    for (const expected of ["# Project update", "**team**", "_important_", "[the docs](https://example.invalid/docs)", "- first item", "1. step one", "```", "npm test", "| Name  | Value |", "| ----- | ----- |", "| alpha | 1     |", "> A quoted sentence."]) {
       assert(md.includes(expected), `markdown contains ${JSON.stringify(expected)}\n--- got:\n${md}`);
     }
     assert(!md.includes("<table") && !md.includes("Subject:"), `no raw header table\n--- got:\n${md}`);
@@ -248,7 +248,7 @@ const scenarios = {
       await h.clickComposeButton(subject);
       let ed = await h.readEditor(subject);
       assert(ed.wrapperText !== null, `wrapper present after first click; children=${ed.children}`);
-      for (const expected of ["## Hi", "a **b**", "- x\n  - x1\n- y", "| Col A | Col B |", "| --- | --- |", "| 1 | 2 |", "| k | v |", "| k2 | v2 |"]) {
+      for (const expected of ["## Hi", "a **b**", "- x\n  - x1\n- y", "| Col A | Col B |", "| ----- | ----- |", "| 1     | 2     |", "| k   | v   |", "| k2  | v2  |"]) {
         assert(ed.wrapperText.includes(expected), `wrapper text contains ${JSON.stringify(expected)}\n--- got:\n${ed.wrapperText}`);
       }
       assert(ed.buttonTitle === "Convert Markdown to HTML", `active title, got ${ed.buttonTitle}`);
@@ -289,6 +289,41 @@ const scenarios = {
     }
   },
 
+  async "compose-enter-keeps-block"(h) {
+    const subject = "tmd-enter";
+    try {
+      await h.bgEval(`await browser.compose.beginNew({ subject: ${JSON.stringify(subject)}, to: ["a@example.invalid"], body: "<p>x</p>" }); return true`);
+      await sleep(2000);
+      await h.clickComposeButton(subject);
+      // insertParagraph is what the editor runs on Enter.
+      const result = await h.chromeEval(`${h.composeWindowSnippet(subject)}
+        const wrapper = editorDoc.body.querySelector(":scope > .thundermd-source");
+        const sel = editorDoc.defaultView.getSelection();
+        sel.collapse(wrapper, wrapper.childNodes.length);
+        editorDoc.execCommand("insertParagraph", false, null);
+        editorDoc.execCommand("insertHTML", false, "# Head");
+        editorDoc.execCommand("insertParagraph", false, null);
+        editorDoc.execCommand("insertParagraph", false, null);
+        editorDoc.execCommand("insertHTML", false, "second line");
+        // Blocks left by the earlier <div> wrapper must still be merged.
+        const legacy = editorDoc.createElement("div");
+        legacy.className = "thundermd-source";
+        legacy.textContent = "- old item";
+        editorDoc.body.appendChild(legacy);
+        return { tag: wrapper.localName, wrappers: editorDoc.body.querySelectorAll(".thundermd-source").length, html: wrapper.innerHTML };`);
+      assert(result.tag === "pre", `wrapper is a pre, got ${result.tag}`);
+      assert(result.wrappers === 2, `enter did not split the block\n--- got:\n${result.html}`);
+      await h.clickComposeButton(subject);
+      const ed = await h.readEditor(subject);
+      assert(ed.wrapperText === null, `no wrapper left; children=${ed.children}`);
+      for (const expected of ["<p>x</p>", "<h1>Head</h1>", "<p>second line</p>", "<li>old item</li>"]) {
+        assert(ed.html.includes(expected), `html contains ${JSON.stringify(expected)}\n--- got:\n${ed.html}`);
+      }
+    } finally {
+      await h.closeCompose(subject);
+    }
+  },
+
   async "compose-reply-keeps-quote"(h) {
     const subject = "tmd-reply";
     try {
@@ -306,7 +341,7 @@ const scenarios = {
       assert(ed.html.includes('type="cite"') && ed.html.includes("Project update"), "quote still present");
       // The identity may reply above or below the quote: the wrapper must sit
       // at one end, with the cite prefix and the blockquote kept together.
-      const wrapperIndex = ed.children.findIndex(c => c.startsWith("div.thundermd-source"));
+      const wrapperIndex = ed.children.findIndex(c => c.startsWith("pre.thundermd-source"));
       assert(wrapperIndex === 0 || wrapperIndex === ed.children.length - 1, `wrapper at one end; children=${ed.children}`);
       await h.bgEval(`await browser.tabs.sendMessage(${tabId}, { action: "compose.setSource", source: "my answer" }); return true`);
       await h.clickComposeButton(subject);

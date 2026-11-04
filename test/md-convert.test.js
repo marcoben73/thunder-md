@@ -49,8 +49,8 @@ test("htmlToMarkdown from DOM element keeps links, images and tables", () => {
   const md = MD.htmlToMarkdown(window.document.getElementById("r"));
   assert.match(md, /\[x\]\(https:\/\/x\.it\/\)/);
   assert.match(md, /!\[pic\]\(cid:1\)/);
-  assert.match(md, /\| a \|/);
-  assert.match(md, /\| 1 \|/);
+  assert.match(md, /\| a   \|/);
+  assert.match(md, /\| 1   \|/);
 });
 
 test("htmlToMarkdown drops style and script", () => {
@@ -71,7 +71,7 @@ test("domToText keeps blank lines (paragraph separation)", () => {
 
 test("textToSourceHtml escapes and splits lines", () => {
   const html = MD.textToSourceHtml("a <b>\r\n> q");
-  assert.equal(html, '<div class="thundermd-source">a &lt;b&gt;<br>&gt; q<br></div>');
+  assert.equal(html, '<pre class="thundermd-source">a &lt;b&gt;<br>&gt; q<br></pre>');
 });
 
 test("textToLinesHtml escapes, normalizes CRLF and joins with br", () => {
@@ -84,6 +84,7 @@ test("buildSourceElement round-trips through domToText", () => {
   const source = "# T\n\n- a\n- b\n\n```\ncode\n```";
   const el = MD.buildSourceElement(window.document, source);
   assert.equal(el.className, "thundermd-source");
+  assert.equal(el.localName, "pre");
   assert.equal(MD.domToText(el), source);
 });
 
@@ -96,7 +97,7 @@ test("htmlToMarkdown promotes the first row of header-less tables", () => {
   const { window } = dom('<div id="r"><table><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table></div>');
   const el = window.document.getElementById("r");
   const md = MD.htmlToMarkdown(el);
-  assert.equal(md, "| a | b |\n| --- | --- |\n| 1 | 2 |");
+  assert.equal(md, "| a   | b   |\n| --- | --- |\n| 1   | 2   |");
   assert.equal(el.querySelector("th"), null, "live DOM must not be modified");
 });
 
@@ -117,5 +118,39 @@ test("markdownToHtml: tables get borders as attributes and inline styles", () =>
 
 test("markdownToHtml: table HTML round-trips back to a GFM table", () => {
   const { window } = dom(`<div id="r">${MD.markdownToHtml("| a | b |\n|---|---|\n| 1 | 2 |")}</div>`);
-  assert.equal(MD.htmlToMarkdown(window.document.getElementById("r")), "| a | b |\n| --- | --- |\n| 1 | 2 |");
+  assert.equal(MD.htmlToMarkdown(window.document.getElementById("r")), "| a   | b   |\n| --- | --- |\n| 1   | 2   |");
+});
+
+test("sourceText joins split wrappers one line per block", () => {
+  const { window } = dom('<pre class="thundermd-source">a<br>b<br></pre><div class="thundermd-source">c</div><div class="thundermd-source"><br></div><div class="thundermd-source">d<br></div>');
+  const wrappers = MD.getSourceElements(window.document.body);
+  assert.equal(wrappers.length, 4);
+  assert.equal(MD.sourceText(wrappers), "a\nb\nc\n\nd");
+});
+
+test("htmlToMarkdown keeps intraword underscores unescaped", () => {
+  const md = MD.htmlToMarkdown("<p>take q_empty = QCOUNT, q_full and a_b_c; _lead, trail_, __init__, <em>em</em></p>");
+  assert.equal(md, "take q_empty = QCOUNT, q_full and a_b_c; \\_lead, trail\\_, \\_\\_init\\_\\_, _em_");
+  const html = MD.markdownToHtml(md);
+  assert.match(html, /q_empty = QCOUNT, q_full and a_b_c; _lead, trail_, __init__, <em>em<\/em>/);
+});
+
+test("htmlToMarkdown pads table columns to the widest cell", () => {
+  const md = MD.htmlToMarkdown("<table><tr><th>aaaaa</th><th>b</th></tr><tr><td>c</td><td>ddddd</td></tr></table>");
+  assert.equal(md, "| aaaaa | b     |\n| ----- | ----- |\n| c     | ddddd |");
+});
+
+test("htmlToMarkdown table: alignment, escaped pipes, ragged rows, line breaks", () => {
+  const md = MD.htmlToMarkdown('<table><thead><tr><th align="left">L</th><th align="center">Center</th><th align="right">R</th></tr></thead>' +
+    "<tbody><tr><td>a | b</td><td><code>x|y</code></td><td>1<br>2</td></tr><tr><td>only</td></tr></tbody></table>");
+  assert.equal(md, [
+    "| L      | Center |   R |",
+    "| :----- | :----: | --: |",
+    "| a \\| b | `x\\|y` | 1 2 |",
+    "| only   |        |     |",
+  ].join("\n"));
+  const html = MD.markdownToHtml(md);
+  assert.match(html, /<td[^>]*>a \| b<\/td>/);
+  assert.match(html, /<td[^>]*><code>x\|y<\/code><\/td>/);
+  assert.equal((html.match(/<tr>/g) || []).length, 3);
 });

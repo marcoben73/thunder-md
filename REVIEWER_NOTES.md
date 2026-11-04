@@ -44,7 +44,7 @@ To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vend
   DocumentFragment and put back on the next toggle. No `innerHTML`, nothing is written to the message.
 - **Compose** (`src/compose/compose-script.js`): the author's part of the editor body (everything
   except `.moz-cite-prefix`, `blockquote[type=cite]`, `.moz-signature`, `.moz-forward-container`) is
-  replaced in place by a `<div class="thundermd-source">` holding the Markdown text, and converted
+  replaced in place by a `<pre class="thundermd-source">` holding the Markdown text, and converted
   back with marked. The rendered HTML is the user's own text parsed with `DOMParser` and imported into
   the editor. Rendered tables get `border="1"` and inline border styles so recipients see borders.
 - **Sending** (`src/background.js`, `onBeforeSend`): if the window is in Markdown mode the editor is
@@ -69,6 +69,6 @@ To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vend
 ## Known limitations
 
 - Inline replies: author text split around the quote is grouped at the position of the first piece.
-- A draft saved while in Markdown mode keeps the `div.thundermd-source` wrapper in its body; it is
+- A draft saved while in Markdown mode keeps the `pre.thundermd-source` wrapper in its body; it is
   recognised again when the draft is reopened.
 - Minimum version 153 because the `compose_scripts`/`message_display_scripts` manifest keys are used.
