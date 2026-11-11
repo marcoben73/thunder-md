@@ -154,3 +154,65 @@ test("htmlToMarkdown table: alignment, escaped pipes, ragged rows, line breaks",
   assert.match(html, /<td[^>]*><code>x\|y<\/code><\/td>/);
   assert.equal((html.match(/<tr>/g) || []).length, 3);
 });
+
+const TERMINAL_SAMPLE = [
+  "  Buongiorno Fabio,",
+  "  ",
+  "  grazie per la mappa e per il codice del CRC. Ho verificato su un frame",
+  "  letto al banco (firmware 1.1.4) e torna tutto: CRC corretto, pitch 414 e",
+  "  roll -561, coerenti con i valori dell'accelerometro.",
+  "",
+  "  Per completare l'integrazione mi servono ancora tre informazioni:",
+  "",
+  "  1. Valori dell'accelerometro (byte 5-16): sono già calibrati, cioè gli",
+  "     stessi da cui il firmware calcola pitch e roll dopo la calibrazione",
+  "     fatta in Tecnolux? Oppure la calibrazione corregge solo gli angoli?",
+  "     ",
+  "  2. Unità di misura: in che unità sono espressi i tre valori",
+  "     dell'accelerometro e la temperatura (byte 17-20)?",
+  " ",
+  "  3. Orientamento degli assi: rispetto alla scheda (ad esempio al",
+  "     connettore), qual è la direzione degli assi X, Y e Z?",
+  "     ",
+  "  Grazie.",
+  "     ",
+  "  Marco",
+].join("\n");
+
+test("cleanTerminalText: margin, hard wraps and padded blank lines from a terminal", () => {
+  assert.equal(MD.cleanTerminalText(TERMINAL_SAMPLE), [
+    "Buongiorno Fabio,",
+    "",
+    "grazie per la mappa e per il codice del CRC. Ho verificato su un frame letto al banco (firmware 1.1.4) e torna tutto: CRC corretto, pitch 414 e roll -561, coerenti con i valori dell'accelerometro.",
+    "",
+    "Per completare l'integrazione mi servono ancora tre informazioni:",
+    "1. Valori dell'accelerometro (byte 5-16): sono già calibrati, cioè gli stessi da cui il firmware calcola pitch e roll dopo la calibrazione fatta in Tecnolux? Oppure la calibrazione corregge solo gli angoli?",
+    "2. Unità di misura: in che unità sono espressi i tre valori dell'accelerometro e la temperatura (byte 17-20)?",
+    "3. Orientamento degli assi: rispetto alla scheda (ad esempio al connettore), qual è la direzione degli assi X, Y e Z?",
+    "",
+    "Grazie.",
+    "",
+    "Marco",
+  ].join("\n"));
+  const html = MD.markdownToHtml(MD.cleanTerminalText(TERMINAL_SAMPLE));
+  assert.match(html, /<p>Per completare[^<]*<\/p>\s*<ol>\s*<li>Valori[^<]*<\/li>\s*<li>Unità[^<]*<\/li>\s*<li>Orientamento[^<]*<\/li>\s*<\/ol>/);
+});
+
+test("cleanTerminalText: text without a common margin is unchanged", () => {
+  const text = "line one\n  indented\nline three  \n";
+  assert.equal(MD.cleanTerminalText(text), text);
+  assert.equal(MD.cleanTerminalText(" one\n two"), " one\n two");
+  assert.equal(MD.cleanTerminalText("   \n "), "   \n ");
+});
+
+test("cleanTerminalText: fenced code verbatim, tables and headings not joined", () => {
+  const text = "  # Title\n  intro\n  wrapped\n\n  ```js\n  const a = 1;\n    nested();\n\n  ```\n  | a | b |\n  |---|---|\n  | 1 | 2 |";
+  assert.equal(MD.cleanTerminalText(text),
+    "# Title\nintro wrapped\n\n```js\nconst a = 1;\n  nested();\n\n```\n| a | b |\n|---|---|\n| 1 | 2 |");
+});
+
+test("cleanTerminalText: nested lists keep levels, ordered list from 3 keeps its blank line", () => {
+  assert.equal(MD.cleanTerminalText("  - a\n    wrapped\n\n    - b\n\n  - c"), "- a wrapped\n  - b\n- c");
+  assert.equal(MD.cleanTerminalText("  Text\n\n  3. three\n  4. four"), "Text\n\n3. three\n4. four");
+  assert.equal(MD.cleanTerminalText("  Text\n\n  - bullet"), "Text\n- bullet");
+});

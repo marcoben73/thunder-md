@@ -9,7 +9,7 @@ A Thunderbird extension for Markdown.
 
 ## Features
 
-Requires Thunderbird >= 153.
+Requires Thunderbird >= 154.
 
 - **Reading**: a "Markdown" button in the message header toolbar. Shows the message body as
   Markdown source (read-only, monospace). Second click: original body. The state is per tab and
@@ -31,6 +31,9 @@ break needs two trailing spaces or a backslash, a new paragraph an empty line); 
 [turndown](https://github.com/mixmark-io/turndown) + GFM plugin (tables, strikethrough, task lists).
 Lists are reshaped to the form the native editor produces (loose items unwrapped, nested lists placed
 after their parent item), so the formatting toolbar reflects the list state on every item.
+Pasting inside the Markdown block always inserts plain text. Text copied from a terminal (every
+line indented by at least two spaces) loses that margin and its hard wraps, and lists are compacted;
+fenced code is kept verbatim.
 
 ## Development
 
@@ -62,7 +65,7 @@ SMTP server used by the send scenarios; the test profile points SMTP at 127.0.0.
 fails unless the sink is running.
 
 Technical notes and API limits in `docs/NOTES.md`; downloaded Thunderbird documentation in `docs/`.
-Notes for the add-on reviewer (build, third-party code, permissions) in `REVIEWER_NOTES.md`.
+Notes for the add-on reviewer (build, third-party code, permissions) in `asset/REVIEWER_NOTES.md`.
 
 ## Localization
 
@@ -74,7 +77,8 @@ copy `src/_locales/en/messages.json` into a new folder and translate the `messag
 ## License
 
 MIT, see `LICENSE`. Bundled third-party code (marked, turndown, turndown-plugin-gfm, all MIT) is
-listed in `src/vendor/THIRD-PARTY.md` with the license texts next to it.
+declared in `src/VENDOR.md` (exact upstream file, version and SHA-256 of each copy), with the license
+texts in `src/vendor/`.
 
 ## Permissions
 

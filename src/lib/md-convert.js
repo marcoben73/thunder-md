@@ -359,6 +359,108 @@
     return lines.map(line => escapeHtml(line)).join("<br>");
   }
 
+  const FENCE_RE = /^ {0,3}(```|~~~)/;
+  const THEMATIC_BREAK_RE = /^ {0,3}([-*_])( *\1){2,} *$/;
+  const BLOCK_START_RE = /^ {0,3}(#{1,6}(\s|$)|>|\|)/;
+  const LIST_ITEM_RE = /^ *(?:[-*+]|(\d{1,9})[.)])(?: +|$)/;
+
+  /**
+   * Text copied from a terminal application (for example a chat UI in a
+   * terminal) has a left margin on every line, hard wraps at the terminal
+   * width and blank lines padded with spaces. When every non-blank line
+   * starts with at least two spaces the margin is removed, wrapped lines are
+   * joined back into their paragraph or list item and lists are compacted.
+   * Any other text is returned unchanged.
+   *
+   * With CommonMark soft breaks joining lines does not change the rendered
+   * HTML. Fenced code is copied verbatim; headings, quotes, table rows and
+   * thematic breaks are never joined.
+   */
+  function cleanTerminalText(text) {
+    const raw = String(text || "");
+    const lines = raw.replace(/\r\n?/g, "\n").split("\n").map(line => line.replace(/\s+$/, ""));
+    const indents = lines.filter(Boolean).map(line => line.match(/^ */)[0].length);
+    if (!indents.length) {
+      return raw;
+    }
+    const margin = Math.min(...indents);
+    if (margin < 2) {
+      return raw;
+    }
+
+    const blocks = [];
+    let fence = null;
+    let joinable = false;
+    let inList = false;
+    for (const full of lines) {
+      const line = full.slice(margin);
+      if (fence) {
+        blocks.push({ kind: "code", text: line });
+        if (line.trimStart().startsWith(fence)) {
+          fence = null;
+        }
+        continue;
+      }
+      if (!line) {
+        blocks.push({ kind: "blank", text: "" });
+        joinable = false;
+        continue;
+      }
+      const fenceMatch = line.match(FENCE_RE);
+      if (fenceMatch) {
+        fence = fenceMatch[1];
+        blocks.push({ kind: "code", text: line });
+        joinable = false;
+        continue;
+      }
+      if (THEMATIC_BREAK_RE.test(line) || BLOCK_START_RE.test(line)) {
+        blocks.push({ kind: "block", text: line });
+        joinable = false;
+        inList = false;
+        continue;
+      }
+      const item = line.match(LIST_ITEM_RE);
+      if (item) {
+        blocks.push({ kind: "item", text: line, start: item[1] });
+        joinable = true;
+        inList = true;
+        continue;
+      }
+      if (joinable) {
+        blocks[blocks.length - 1].text += " " + line.trim();
+        continue;
+      }
+      const indent = line.match(/^ */)[0].length;
+      if (indent >= 4 && !inList) {
+        blocks.push({ kind: "code", text: line });
+        continue;
+      }
+      inList = inList && indent > 0;
+      blocks.push({ kind: "para", text: inList ? line : line.trimStart() });
+      joinable = true;
+    }
+
+    const kept = blocks.filter((block, index) => {
+      if (block.kind !== "blank") {
+        return true;
+      }
+      const prev = blocks.slice(0, index).reverse().find(b => b.kind !== "blank");
+      const next = blocks.slice(index + 1).find(b => b.kind !== "blank");
+      if (!prev || !next || blocks[index - 1].kind === "blank") {
+        return false;
+      }
+      if (next.kind !== "item") {
+        return true;
+      }
+      if (prev.kind === "item") {
+        return false;
+      }
+      // An ordered list may interrupt a paragraph only when it starts at 1.
+      return !(prev.kind === "para" && (next.start === undefined || Number(next.start) === 1));
+    });
+    return kept.map(block => block.text).join("\n");
+  }
+
   /*
    * The wrapper is a <pre>: on Enter the Thunderbird editor inserts a line
    * break in it, while it splits a <div> or <p> into a new block at every
@@ -418,6 +520,7 @@
     domToText,
     escapeHtml,
     textToLinesHtml,
+    cleanTerminalText,
     textToSourceHtml,
     buildSourceElement,
     getSourceElement,

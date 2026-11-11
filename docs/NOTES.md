@@ -51,6 +51,12 @@ Collected during design (November 2026, Thunderbird 153.0.2).
   similar editors offer one block element per line): inside the source block a `paste` listener
   cancels the default and inserts the `text/plain` flavor through `execCommand("insertHTML")`,
   which keeps the editor undo stack.
+- Terminal copies (`cleanTerminalText`): applied only when every non-blank line has a margin of at
+  least two spaces. Margin removed, wrapped lines joined into their paragraph or list item, blank
+  lines before list items dropped (kept before an ordered list not starting at 1, which cannot
+  interrupt a paragraph). Lossless for the rendered HTML thanks to soft breaks; trailing double-space
+  hard breaks are lost (in terminal output those spaces are padding). Fenced code is verbatim;
+  indented code is recognised only outside lists.
 - Synthetic paste events: Gecko ignores the `clipboardData` member of `ClipboardEventInit` (a fresh
   empty DataTransfer is attached) and only honors its own `dataType`/`data` pair, one flavor only.
   Content listeners cannot read a `DataTransfer` filled from chrome code either (principal check).

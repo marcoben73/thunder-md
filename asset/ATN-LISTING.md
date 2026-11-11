@@ -48,7 +48,7 @@ A "Markdown" button in the formatting toolbar of the HTML composer turns what yo
 
 <b>Notes</b>
 <ul>
-<li>Requires Thunderbird 153 or later.</li>
+<li>Requires Thunderbird 154 or later.</li>
 <li>Markdown writing needs an HTML composition. In a plain text composition the button does nothing: use Shift+Write, or enable "Compose messages in HTML format" in the account settings.</li>
 <li>Everything runs locally. The add-on sends nothing over the network and stores no data.</li>
 <li>Interface in English, Italian, German, French and Spanish.</li>
@@ -95,17 +95,19 @@ Upload in this order; the caption goes in the field next to each image.
 ## Submission form
 
 - Distribution: "On this site".
-- File: `dist/thundermd-0.1.5.xpi`.
-- Source code: answer yes (`src/vendor/marked.umd.js` is minified) and upload
-  `dist/thundermd-0.1.5-source.zip` (made with `git archive` from the release commit).
-- Notes to reviewer: paste the content of `REVIEWER_NOTES.md`.
+- File: `dist/thundermd-0.1.6.xpi`.
+- Source code: answer no. There is no build step (the XPI is a zip of `src/`) and the only minified
+  file, `vendor/marked.umd.js`, is a third-party library declared in `VENDOR.md` at the XPI root.
+  Uploading a source archive sends the version to the slower manual build verification.
+- Notes to reviewer: paste the content of `asset/REVIEWER_NOTES.md`.
 
-## Version notes for 0.1.5
+## Version notes for 0.1.6
 
 ```
 First public release.
 - Read any message as Markdown source from the message header toolbar.
 - Write in Markdown in the HTML composer and send native HTML; quotes, signature and forwarded content are left untouched.
 - GitHub Flavored Markdown with bordered tables, nested lists, task lists and fenced code.
+- Text pasted from a terminal into the Markdown block loses its margin and hard wraps.
 - Interface in English, Italian, German, French and Spanish.
 ```

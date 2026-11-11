@@ -103,7 +103,8 @@
    * Editors such as Ghostwriter put an HTML flavor on the clipboard with one
    * block element per line. Pasted as HTML into the source wrapper, every
    * line would become a paragraph and show up with a blank line after it.
-   * Inside the wrapper only the plain text flavor is meaningful.
+   * Inside the wrapper only the plain text flavor is meaningful. Text copied
+   * from a terminal loses its left margin and hard wraps (cleanTerminalText).
    */
   function onPaste(event) {
     if (!sourceElementAroundSelection()) {
@@ -115,7 +116,7 @@
       return;
     }
     event.preventDefault();
-    insertLines(text);
+    insertLines(MD.cleanTerminalText(text));
   }
 
   document.addEventListener("paste", onPaste, true);

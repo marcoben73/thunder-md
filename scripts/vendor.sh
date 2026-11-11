@@ -1,31 +1,40 @@
 #!/usr/bin/env bash
 # Copies the browser builds of the npm libraries into src/vendor/ (no bundler),
-# together with their license texts and a THIRD-PARTY.md manifest.
+# together with their license texts, and writes src/VENDOR.md: the vendoring
+# declaration read by the addons.thunderbird.net review, mapping every bundled
+# file to the exact upstream file of the pinned release.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NM="$ROOT/node_modules"
 OUT="$ROOT/src/vendor"
 mkdir -p "$OUT"
-cp "$NM/marked/lib/marked.umd.js" "$OUT/marked.umd.js"
-cp "$NM/turndown/lib/turndown.browser.umd.js" "$OUT/turndown.js"
-cp "$NM/turndown-plugin-gfm/dist/turndown-plugin-gfm.js" "$OUT/turndown-plugin-gfm.js"
-rm -f "$OUT/VERSIONS"
+rm -f "$OUT/VERSIONS" "$OUT/THIRD-PARTY.md"
+
+ENTRIES=(
+  "marked.umd.js|marked|lib/marked.umd.js"
+  "turndown.js|turndown|lib/turndown.browser.umd.js"
+  "turndown-plugin-gfm.js|turndown-plugin-gfm|dist/turndown-plugin-gfm.js"
+)
 
 {
-  echo "# Third-party code bundled in src/vendor/"
+  echo "# Third-party libraries"
   echo
-  echo "Files are copied unmodified from the npm packages listed below (see scripts/vendor.sh)."
-  echo
-  echo "| File | Package | Version | License | Source |"
-  echo "|---|---|---|---|---|"
-  for entry in "marked.umd.js|marked|lib/marked.umd.js" \
-               "turndown.js|turndown|lib/turndown.browser.umd.js" \
-               "turndown-plugin-gfm.js|turndown-plugin-gfm|dist/turndown-plugin-gfm.js"; do
+  echo "Files in vendor/ are unmodified copies of the npm release files linked below (copied by"
+  echo "scripts/vendor.sh, no bundler). License texts are in vendor/LICENSE-<package>.txt."
+  for entry in "${ENTRIES[@]}"; do
     IFS='|' read -r file pkg src <<< "$entry"
+    cp "$NM/$pkg/$src" "$OUT/$file"
+    cp "$NM/$pkg/LICENSE" "$OUT/LICENSE-$pkg.txt"
     version=$(node -p "require('$NM/$pkg/package.json').version")
     license=$(node -p "require('$NM/$pkg/package.json').license")
-    echo "| $file | $pkg | $version | $license (LICENSE-$pkg.txt) | https://www.npmjs.com/package/$pkg/v/$version ($src) |"
-    cp "$NM/$pkg/LICENSE" "$OUT/LICENSE-$pkg.txt"
+    sha=$(sha256sum "$OUT/$file" | cut -d' ' -f1)
+    echo
+    echo "vendor/$file:"
+    echo "- Package: $pkg"
+    echo "- Version: $version"
+    echo "- License: $license"
+    echo "- URL: https://cdn.jsdelivr.net/npm/$pkg@$version/$src"
+    echo "- SHA-256: $sha"
   done
-} > "$OUT/THIRD-PARTY.md"
-cat "$OUT/THIRD-PARTY.md"
+} > "$ROOT/src/VENDOR.md"
+cat "$ROOT/src/VENDOR.md"

@@ -11,9 +11,10 @@ transpilation or bundling: every file in the XPI is identical to the file in the
 
 ## Third-party code
 
-`src/vendor/` holds three unmodified files copied from npm by `scripts/vendor.sh`. Package, version,
-license and the exact source path are listed in `src/vendor/THIRD-PARTY.md`; the license texts are
-next to them.
+`vendor/` holds three unmodified files copied from npm by `scripts/vendor.sh`. They are declared in
+`VENDOR.md` at the add-on root: each file is mapped to the exact file of the pinned release on
+jsDelivr, with its SHA-256 (the bundled copies are byte-identical). `marked.umd.js` is minified
+upstream; it is shipped as published by the marked project. The license texts are in `vendor/`.
 
 | File | Package | Version |
 |---|---|---|
@@ -21,8 +22,8 @@ next to them.
 | vendor/turndown.js | turndown | 7.2.4 |
 | vendor/turndown-plugin-gfm.js | turndown-plugin-gfm | 1.0.2 |
 
-To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vendor`, then diff
-`src/vendor/` against the XPI.
+To verify: download the URLs in `VENDOR.md` and compare checksums, or `npm install` (versions
+pinned in `package-lock.json`), `npm run vendor`, then diff `src/vendor/` against the XPI.
 
 ## Permissions
 
@@ -47,6 +48,11 @@ To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vend
   replaced in place by a `<pre class="thundermd-source">` holding the Markdown text, and converted
   back with marked. The rendered HTML is the user's own text parsed with `DOMParser` and imported into
   the editor. Rendered tables get `border="1"` and inline border styles so recipients see borders.
+- **Paste** (`src/compose/compose-script.js`, `onPaste`): only when the caret is inside the Markdown
+  block, the default paste is cancelled and the clipboard `text/plain` flavor is inserted with
+  `execCommand("insertHTML")`. The HTML passed is built by `textToLinesHtml`: every line is
+  HTML-escaped and joined with `<br>`, so no markup from the clipboard reaches the editor. Text with a
+  terminal margin is tidied first by `cleanTerminalText` (pure string function).
 - **Sending** (`src/background.js`, `onBeforeSend`): if the window is in Markdown mode the editor is
   converted first and the listener returns `{ details: { body } }`; if the conversion fails the send
   is cancelled (`{ cancel: true }`) instead of sending raw Markdown. `onAfterSend` puts the Markdown
@@ -54,6 +60,8 @@ To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vend
   `headerMessageId`, because Thunderbird 153 does not set `error` on SMTP failures).
 - **Plain text composition**: the button does nothing; the compose format of an open window cannot be
   changed through the API and the formatting toolbar is hidden there anyway.
+- **Icons**: `icons/md-active.svg` is not referenced by the manifest; `background.js` sets it with
+  `messageDisplayAction.setIcon`/`composeAction.setIcon` while a tab is in Markdown mode.
 - **State**: two in-memory `Map`s keyed by tab id in the background page, cleared on `tabs.onRemoved`.
   No `storage`, no preferences.
 
@@ -71,4 +79,5 @@ To verify: `npm install` (versions pinned in `package-lock.json`), `npm run vend
 - Inline replies: author text split around the quote is grouped at the position of the first piece.
 - A draft saved while in Markdown mode keeps the `pre.thundermd-source` wrapper in its body; it is
   recognised again when the draft is reopened.
-- Minimum version 153 because the `compose_scripts`/`message_display_scripts` manifest keys are used.
+- Minimum version 154: the `compose_scripts`/`message_display_scripts` manifest keys are used, and
+  before 154 `message_display_scripts` also required the `scripting` permission.
