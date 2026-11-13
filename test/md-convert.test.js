@@ -216,3 +216,43 @@ test("cleanTerminalText: nested lists keep levels, ordered list from 3 keeps its
   assert.equal(MD.cleanTerminalText("  Text\n\n  3. three\n  4. four"), "Text\n\n3. three\n4. four");
   assert.equal(MD.cleanTerminalText("  Text\n\n  - bullet"), "Text\n- bullet");
 });
+
+test("cleanTerminalText: lettered list items stay separate", () => {
+  const text = [
+    "  Ti chiedo:",
+    "",
+    "  A. In che posizione deve stare S1 per l'uscita HDMI, e cosa seleziona",
+    "     esattamente?",
+    "  B. Puoi misurare con la sonda il pin 14?",
+    "  C. Se il percorso dipende da componenti montati diversamente?",
+    "",
+    "  Per la misura possiamo metterci d'accordo.",
+  ].join("\n");
+  assert.equal(MD.cleanTerminalText(text), [
+    "Ti chiedo:",
+    "A. In che posizione deve stare S1 per l'uscita HDMI, e cosa seleziona esattamente?",
+    "B. Puoi misurare con la sonda il pin 14?",
+    "C. Se il percorso dipende da componenti montati diversamente?",
+    "",
+    "Per la misura possiamo metterci d'accordo.",
+  ].join("\n"));
+  assert.equal(MD.cleanTerminalText("  A. Rossi ha detto\n  che va bene"), "A. Rossi ha detto che va bene");
+});
+
+test("markdownToHtml: lettered lists", () => {
+  const html = MD.markdownToHtml("Ti chiedo:\nA. **uno**\n   continua\nB. due\n\nC. tre\n\nFine.");
+  assert.match(html, /<p>Ti chiedo:<\/p>\s*<ol type="A">\s*<li><strong>uno<\/strong>\ncontinua<\/li>\s*<li>due<\/li>\s*<li>tre<\/li>\s*<\/ol>\s*<p>Fine\.<\/p>/);
+  assert.match(MD.markdownToHtml("a) x\nb) y"), /<ol type="a">\s*<li>x<\/li>\s*<li>y<\/li>\s*<\/ol>/);
+  assert.match(MD.markdownToHtml("1. uno\n   A. x\n   B. y\n2. due"), /<li>uno[\s\S]*<ol type="A">\s*<li>x<\/li>\s*<li>y<\/li>\s*<\/ol>[\s\S]*<li>due<\/li>/);
+  assert.match(MD.markdownToHtml("Testo\nA. Rossi ha detto"), /^<p>Testo\nA\. Rossi ha detto<\/p>\s*$/);
+  assert.doesNotMatch(MD.markdownToHtml("A. x\nC. y"), /<ol/);
+  assert.doesNotMatch(MD.markdownToHtml("A. x\nb. y"), /<ol/);
+  assert.doesNotMatch(MD.markdownToHtml("```\nA. x\nB. y\n```"), /<ol/);
+});
+
+test("lettered lists round-trip through htmlToMarkdown", () => {
+  const md = MD.htmlToMarkdown(MD.markdownToHtml("Intro\n\nA. one\nB. two"));
+  assert.equal(md, "Intro\n\nA. one\nB. two");
+  assert.equal(MD.htmlToMarkdown('<ol style="list-style-type: lower-alpha"><li>x</li><li>y</li></ol>'), "a. x\nb. y");
+  assert.match(MD.markdownToHtml(md), /<ol type="A">/);
+});

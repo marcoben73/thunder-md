@@ -280,15 +280,17 @@ const scenarios = {
       assert(ed.wrapperHtml.includes("x<br># Title<br>line one<br>line two"), `lines joined with br\n--- got:\n${ed.wrapperHtml}`);
       assert(!/<(p|div)[\s>]/.test(ed.wrapperHtml), `no block elements inside the wrapper\n--- got:\n${ed.wrapperHtml}`);
       // Terminal copy: two-space margin, hard wraps, padded blank lines.
-      prevented = await h.pasteText(subject, "\n  Para one\n  wrapped\n   \n  1. item\n     cont\n     \n  2. two");
+      prevented = await h.pasteText(subject, "\n  Para one\n  wrapped\n   \n  1. item\n     cont\n     \n  2. two\n\n  Ask:\n\n  A. first\n     wrapped\n  B. second");
       assert(prevented === true, "terminal paste handled inside the markdown block");
       await sleep(300);
       ed = await h.readEditor(subject);
       assert(ed.wrapperHtml.includes("Para one wrapped<br>1. item cont<br>2. two"), `terminal margin and wraps removed\n--- got:\n${ed.wrapperHtml}`);
+      assert(ed.wrapperHtml.includes("Ask:<br>A. first wrapped<br>B. second"), `lettered items kept apart\n--- got:\n${ed.wrapperHtml}`);
       await h.clickComposeButton(subject);
       ed = await h.readEditor(subject);
       assert(ed.html.includes("<h1>Title</h1>"), `pasted markdown converted\n--- got:\n${ed.html}`);
       assert(/<li>item cont<\/li>\s*<li>two<\/li>/.test(ed.html), `terminal list converted\n--- got:\n${ed.html}`);
+      assert(/<ol type="A">\s*<li>first wrapped<\/li>\s*<li>second<\/li>\s*<\/ol>/.test(ed.html), `lettered list kept by the editor\n--- got:\n${ed.html}`);
       prevented = await h.pasteText(subject, text);
       assert(prevented === false, "paste left to the editor outside the markdown block");
     } finally {

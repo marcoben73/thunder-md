@@ -16,6 +16,120 @@
   ]);
 
   let turndownInstance = null;
+  let markedInstance = null;
+
+  /*
+   * Lettered lists ("A. one", "B. two", also "a." "A)" "a)") are not part of
+   * CommonMark. They are recognised as an extension, in the spirit of Pandoc
+   * fancy lists, and rendered as <ol type="A|a">. To keep a line such as
+   * "A. Smith wrote" plain text, a list needs at least two items with
+   * consecutive letters starting at A or a, all with the same case and
+   * delimiter. Item content is inline only.
+   */
+  const ALPHA_ITEM_RE = /^ {0,3}([A-Za-z])([.)]) +(\S.*)$/;
+  const ALPHA_START_RE = /^ {0,3}[Aa][.)] +\S/;
+  const NOT_CONTINUATION_RE = /^ {0,3}(#{1,6}(\s|$)|>|\||```|~~~|[-*+] |\d{1,9}[.)] )/;
+
+  function alphaLetter(upper, index) {
+    return String.fromCharCode((upper ? 65 : 97) + index);
+  }
+
+  /**
+   * Lettered list starting at lines[from], or null. Returns the case, the
+   * delimiter, the items ({ line, text }) and the index after the last line
+   * of the list.
+   */
+  function scanAlphaList(lines, from) {
+    const first = ALPHA_ITEM_RE.exec(lines[from] || "");
+    if (!first || !/^[Aa]$/.test(first[1])) {
+      return null;
+    }
+    const upper = first[1] === "A";
+    const delim = first[2];
+    const isNext = (line, index) => {
+      const match = ALPHA_ITEM_RE.exec(line || "");
+      return match && index < 26 && match[1] === alphaLetter(upper, index) && match[2] === delim ? match : null;
+    };
+    const items = [];
+    let i = from;
+    let end = from;
+    let match = first;
+    while (match) {
+      const item = { line: i, text: match[3] };
+      items.push(item);
+      i++;
+      while (i < lines.length && lines[i].trim() && !ALPHA_ITEM_RE.test(lines[i]) && !NOT_CONTINUATION_RE.test(lines[i])) {
+        item.text += "\n" + lines[i].trim();
+        i++;
+      }
+      end = i;
+      let next = i;
+      while (next < lines.length && !lines[next].trim()) {
+        next++;
+      }
+      match = isNext(lines[next], items.length);
+      if (match) {
+        i = next;
+      }
+    }
+    return items.length >= 2 ? { upper, delim, items, end } : null;
+  }
+
+  const alphaListExtension = {
+    name: "alphaList",
+    level: "block",
+    start(src) {
+      if (!/^ {0,3}[Aa][.)] /m.test(src)) {
+        return undefined;
+      }
+      const lines = src.split("\n");
+      let offset = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (ALPHA_START_RE.test(lines[i]) && scanAlphaList(lines, i)) {
+          return offset;
+        }
+        offset += lines[i].length + 1;
+      }
+      return undefined;
+    },
+    tokenizer(src) {
+      const lines = src.split("\n");
+      const list = scanAlphaList(lines, 0);
+      if (!list) {
+        return undefined;
+      }
+      const raw = lines.slice(0, list.end).join("\n") + (list.end < lines.length ? "\n" : "");
+      return {
+        type: "alphaList",
+        raw,
+        upper: list.upper,
+        items: list.items.map(item => ({ tokens: this.lexer.inlineTokens(item.text) })),
+      };
+    },
+    renderer(token) {
+      const items = token.items.map(item => `<li>${this.parser.parseInline(item.tokens)}</li>\n`).join("");
+      return `<ol type="${token.upper ? "A" : "a"}">\n${items}</ol>\n`;
+    },
+  };
+
+  function getMarked() {
+    if (!markedInstance) {
+      markedInstance = new root.marked.Marked({ gfm: true, breaks: false, async: false });
+      markedInstance.use({ extensions: [alphaListExtension] });
+    }
+    return markedInstance;
+  }
+
+  /** "upper", "lower" or null for an <ol> rendered with letters. */
+  function alphaListCase(list) {
+    const type = list.getAttribute("type");
+    if (type === "A" || type === "a") {
+      return type === "A" ? "upper" : "lower";
+    }
+    const style = (list.getAttribute("style") || "").toLowerCase();
+    const match = /list-style(?:-type)?\s*:[^;]*\b(upper|lower)-(?:alpha|latin)\b/.exec(style);
+    return match ? match[1] : null;
+  }
 
   // Separates the cells of a row between the cell and the table rules.
   const CELL_MARK = "\u001f";
@@ -157,7 +271,11 @@
         if (parent.nodeName === "OL") {
           const start = parent.getAttribute("start");
           const index = Array.prototype.indexOf.call(parent.children, node);
-          prefix = (start ? Number(start) + index : index + 1) + ". ";
+          const number = start ? Number(start) + index : index + 1;
+          const letters = alphaListCase(parent);
+          prefix = letters && number >= 1 && number <= 26
+            ? alphaLetter(letters === "upper", number - 1) + ". "
+            : number + ". ";
         }
         return prefix + body + (node.nextSibling && !/\n$/.test(body) ? "\n" : "");
       },
@@ -282,7 +400,7 @@
     if (!markdown || !markdown.trim()) {
       return "";
     }
-    const body = parseHtml(root.marked.parse(markdown, { gfm: true, breaks: false, async: false }));
+    const body = parseHtml(getMarked().parse(markdown));
     flattenListItems(body);
     return styleTables(body.innerHTML);
   }
@@ -388,12 +506,23 @@
       return raw;
     }
 
+    const dedented = lines.map(line => line.slice(margin));
+    // Lettered items of a valid list, by line index, with their position (1 for A).
+    const alphaItems = new Map();
+    for (let i = 0; i < dedented.length; i++) {
+      if (!alphaItems.has(i) && ALPHA_START_RE.test(dedented[i])) {
+        const list = scanAlphaList(dedented, i);
+        if (list) {
+          list.items.forEach((item, index) => alphaItems.set(item.line, String(index + 1)));
+        }
+      }
+    }
+
     const blocks = [];
     let fence = null;
     let joinable = false;
     let inList = false;
-    for (const full of lines) {
-      const line = full.slice(margin);
+    for (const [index, line] of dedented.entries()) {
       if (fence) {
         blocks.push({ kind: "code", text: line });
         if (line.trimStart().startsWith(fence)) {
@@ -419,7 +548,7 @@
         inList = false;
         continue;
       }
-      const item = line.match(LIST_ITEM_RE);
+      const item = alphaItems.has(index) ? [line, alphaItems.get(index)] : line.match(LIST_ITEM_RE);
       if (item) {
         blocks.push({ kind: "item", text: line, start: item[1] });
         joinable = true;

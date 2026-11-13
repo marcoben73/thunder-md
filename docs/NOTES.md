@@ -57,6 +57,14 @@ Collected during design (November 2026, Thunderbird 153.0.2).
   interrupt a paragraph). Lossless for the rendered HTML thanks to soft breaks; trailing double-space
   hard breaks are lost (in terminal output those spaces are padding). Fenced code is verbatim;
   indented code is recognised only outside lists.
+- Lettered lists: marked extension `alphaList` on a private `Marked` instance (the global `marked`
+  is untouched). Guard: at least two items, consecutive letters from A/a, same case and delimiter,
+  so "A. Smith wrote" stays text; `start()` only reports a valid run, otherwise the paragraph would be
+  cut. Items are inline only. Rendered as `<ol type="A|a">` (the Thunderbird editor keeps the
+  attribute); turndown writes letters back for `type` or `list-style-type: upper/lower-alpha`. A list
+  that does not start at A (HTML `start`) comes back as letters from that position and is no longer
+  recognised as a list; the `)` delimiter comes back as `.`. `cleanTerminalText` uses the same scanner,
+  so lettered items are not joined.
 - Synthetic paste events: Gecko ignores the `clipboardData` member of `ClipboardEventInit` (a fresh
   empty DataTransfer is attached) and only honors its own `dataType`/`data` pair, one flavor only.
   Content listeners cannot read a `DataTransfer` filled from chrome code either (principal check).

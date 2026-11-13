@@ -31,6 +31,9 @@ break needs two trailing spaces or a backslash, a new paragraph an empty line); 
 [turndown](https://github.com/mixmark-io/turndown) + GFM plugin (tables, strikethrough, task lists).
 Lists are reshaped to the form the native editor produces (loose items unwrapped, nested lists placed
 after their parent item), so the formatting toolbar reflects the list state on every item.
+Lettered lists are an extension (as in Pandoc): `A.`, `a.`, `A)` or `a)` items become an `<ol>` with
+letters, provided there are at least two items with consecutive letters starting at A; their content
+is inline only (no nested blocks).
 Pasting inside the Markdown block always inserts plain text. Text copied from a terminal (every
 line indented by at least two spaces) loses that margin and its hard wraps, and lists are compacted;
 fenced code is kept verbatim.

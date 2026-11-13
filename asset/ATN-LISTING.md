@@ -95,7 +95,7 @@ Upload in this order; the caption goes in the field next to each image.
 ## Submission form
 
 - Distribution: "On this site".
-- File: `dist/thundermd-0.1.6.xpi`.
+- File: `dist/thundermd-0.1.7.xpi`.
 - Source code: answer no. There is no build step (the XPI is a zip of `src/`) and the only minified
   file, `vendor/marked.umd.js`, is a third-party library declared in `VENDOR.md` at the XPI root.
   Uploading a source archive sends the version to the slower manual build verification.
@@ -110,4 +110,10 @@ First public release.
 - GitHub Flavored Markdown with bordered tables, nested lists, task lists and fenced code.
 - Text pasted from a terminal into the Markdown block loses its margin and hard wraps.
 - Interface in English, Italian, German, French and Spanish.
+```
+
+## Version notes for 0.1.7
+
+```
+- Lettered lists (A. B. C., a) b) c)) in the Markdown block become real lists.
 ```
